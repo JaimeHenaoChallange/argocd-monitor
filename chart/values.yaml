@@ -1,0 +1,15 @@
+image:
+  repository: argocd-monitor
+  tag: latest
+  pullPolicy: IfNotPresent
+schedule: "0 */1 * * *"
+config:
+  argoNamespace: argocd
+  maxRetries: 5
+  retryInterval: 60
+  progressingTimeout: 300
+  slackWebhookUrl: ""  # ¡El usuario debe proporcionar esto!
+rbac:
+  create: true
+  serviceAccountName: argocd-monitor-sa
+resources: {}

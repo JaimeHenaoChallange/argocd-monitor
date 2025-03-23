@@ -68,3 +68,18 @@ Para modificar el script de Python, simplemente edita `src/monitor_argocd.py`, r
 ```bash
 docker build -t argocd-monitor:<nueva_version> .
 helm upgrade argocd-monitor chart/argocd-monitor --set image.tag=<nueva_version>
+
+
+  *   **`on: push: branches: [main]`:**  El workflow se ejecuta cuando se hace un push a la rama `main`.
+  *   **`jobs`:**
+      *   **`build-and-push`:**
+          *   **`checkout`:**  Descarga el código del repositorio.
+          *   **`Login to Docker Hub`:**  Inicia sesión en Docker Hub (usando secrets).  Opcional si usas otro registro.
+          *  **`Get current tag` y `Increment version`**: Obtiene la versión actual del `values.yaml` y la incrementa.
+          *   **`Build and push Docker image`:**  Construye la imagen de Docker y la sube a Docker Hub (o al registro que hayas configurado).
+          * **`Update values.yaml`:** Actualiza el `values.yaml` local.
+          * **`Commit changes` y `Push changes`:** Hace commit de los cambios al `values.yaml` y los sube al repositorio.
+      *  **`deploy`:**
+          *  **`Checkout code`:** Descarga el código
+          * **`Install Helm`:** Instala Helm en el runner.
+          * **`Deploy to Kubernetes`:**  Usa `helm upgrade --install` para desplegar o actualizar el chart de Helm. Usa los valores de los secrets y la nueva etiqueta de la imagen.
