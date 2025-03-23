@@ -1,0 +1,7 @@
+chart/
+.git/
+.gitignore
+README.md
+__pycache__/
+*.pyc
+.pytest_cache/
