@@ -5,21 +5,21 @@ on:
     branches:
       - main
     paths:
-      - 'src/**'       # Activa el workflow solo si hay cambios en src/ (código Python)
-      - 'Dockerfile'   # o en el Dockerfile
+      - 'src/**'
+      - 'Dockerfile'
       - 'requirements.txt'
-      - 'chart/argocd-monitor/**'  # o en el chart de Helm
-      - '.github/workflows/deploy.yaml' # o en el workflow
+      - 'chart/argocd-monitor/**'
+      - '.github/workflows/deploy.yaml'
 
 env:
   DOCKERHUB_USERNAME: ${{ secrets.DOCKER_USERNAME_JAIME }}
   DOCKERHUB_PASSWORD: ${{ secrets.DOCKER_PASSWORD_JAIME }}
-  IMAGE_NAME: argocd-monitor  # Cambiado a argocd-monitor
+  IMAGE_NAME: argocd-monitor
   CHART_PATH: chart/argocd-monitor
-  NAMESPACE: argocd #Se puede cambiar
+  NAMESPACE: argocd
 
 jobs:
-  build-push-deploy:  # Renombrado para mayor claridad
+  build-push-deploy:
     runs-on: ubuntu-latest
 
     steps:
@@ -32,37 +32,42 @@ jobs:
           username: ${{ env.DOCKERHUB_USERNAME }}
           password: ${{ env.DOCKERHUB_PASSWORD }}
 
-      - name: Get current tag from values.yaml
-        id: get-tag
-        run: echo "current_tag=$(yq e '.image.tag' "$CHART_PATH/values.yaml")" >> $GITHUB_OUTPUT
-
-      - name: Increment version
-        id: increment-version
+      - name: Get and Increment Version
+        id: get-version
         run: |
-          version="${{ steps.get-tag.outputs.current_tag }}"
-          major=$(echo "$version" | cut -d. -f1)
-          minor=$(echo "$version" | cut -d. -f2)
-          patch=$(echo "$version" | cut -d. -f3)
-          new_patch=$((patch + 1))
-          new_version="$major.$minor.$new_patch"
+          current_tag=$(yq e '.image.tag' "$CHART_PATH/values.yaml")
+          if [[ "$current_tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            # Version semántica: incrementar patch
+            major=$(echo "$current_tag" | cut -d. -f1)
+            minor=$(echo "$current_tag" | cut -d. -f2)
+            patch=$(echo "$current_tag" | cut -d. -f3)
+            new_patch=$((patch + 1))
+            new_version="$major.$minor.$new_patch"
+          elif [[ "$current_tag" == "latest" ]] || [[ -z "$current_tag" ]]; then
+            # Si es 'latest' o vacío, empezar desde 0.1.0
+            new_version="0.1.0"
+          else
+            # Otro formato: usar un timestamp como fallback
+            new_version=$(date +%Y%m%d%H%M%S)
+          fi
           echo "new_tag=$new_version" >> $GITHUB_OUTPUT
 
       - name: Build Docker image
         run: |
-          docker build -t ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.increment-version.outputs.new_tag }} .
+          docker build -t ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.get-version.outputs.new_tag }} .
 
       - name: Push Docker image
         run: |
-          docker push ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.increment-version.outputs.new_tag }}
+          docker push ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.get-version.outputs.new_tag }}
 
       - name: Update values.yaml and commit
         run: |
-          yq e ".image.tag = \"${{ steps.increment-version.outputs.new_tag }}\"" -i "$CHART_PATH/values.yaml"
+          yq e ".image.tag = \"${{ steps.get-version.outputs.new_tag }}\"" -i "$CHART_PATH/values.yaml"
           yq e ".image.repository = \"${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}\"" -i "$CHART_PATH/values.yaml"
           git config --global user.name 'GitHub Actions'
           git config --global user.email 'actions@github.com'
           git add "$CHART_PATH/values.yaml"
-          git commit -m "Update values.yaml with new image tag: ${{ steps.increment-version.outputs.new_tag }}" || echo "No changes to commit"
+          git commit -m "Update values.yaml with new image tag: ${{ steps.get-version.outputs.new_tag }}" || echo "No changes to commit"
           git push
 
       - name: Deploy with Helm
@@ -70,5 +75,5 @@ jobs:
           helm upgrade --install argocd-monitor "$CHART_PATH" \
             --namespace "$NAMESPACE" \
             --set config.slackWebhookUrl="${{ secrets.SLACK_WEBHOOK_URL }}" \
-            --set image.tag=${{ steps.increment-version.outputs.new_tag }} \
+            --set image.tag=${{ steps.get-version.outputs.new_tag }} \
             --set image.repository=${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}

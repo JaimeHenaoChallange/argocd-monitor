@@ -1,7 +1,3 @@
-
-**5. `src/monitor_argocd.py`** (dentro del directorio `src`)
-
-```python
 import subprocess
 import json
 import time
