@@ -9,7 +9,7 @@ on:
       - 'Dockerfile'
       - 'requirements.txt'
       - 'chart/argocd-monitor/**'
-      - '.github/workflows/deploy.yaml'
+      - '.github/workflows/CD.yml'
 
 env:
   DOCKERHUB_USERNAME: ${{ secrets.DOCKER_USERNAME_JAIME }}
