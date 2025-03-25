@@ -67,12 +67,13 @@ jobs:
           git commit -m "Update values.yaml with new image tag: ${{ steps.get-version.outputs.new_tag }}" || echo "No changes to commit"
           git push
 
-      - name: Set up kubeconfig  # ¡Configura el acceso al clúster!
+      - name: Set up kubeconfig  # ¡Ahora con mkdir -p!
         run: |
+          mkdir -p $HOME/.kube  # ¡Crea el directorio .kube!
           echo "${{ secrets.KUBECONFIG }}" | base64 --decode > $HOME/.kube/config
           chmod 600 $HOME/.kube/config
 
-      - name: Install Helm  # Necesario para helm template
+      - name: Install Helm
         uses: azure/setup-helm@v3
         with:
           version: v3.8.1
