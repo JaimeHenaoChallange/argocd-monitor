@@ -1,6 +1,6 @@
 image:
   repository: jaimehenao8126/argocd-monitor
-  tag: 0.1.2
+  tag: 0.1.3
   pullPolicy: IfNotPresent
 schedule: "0 */1 * * *"
 config:
