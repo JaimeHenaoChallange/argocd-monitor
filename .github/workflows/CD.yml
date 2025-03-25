@@ -67,11 +67,14 @@ jobs:
           git commit -m "Update values.yaml with new image tag: ${{ steps.get-version.outputs.new_tag }}" || echo "No changes to commit"
           git push
 
-      - name: Set up kubeconfig  # ¡Ahora con mkdir -p!
+      - name: Set up kubeconfig  # ¡Configura el acceso al clúster!
         run: |
-          mkdir -p $HOME/.kube  # ¡Crea el directorio .kube!
+          mkdir -p $HOME/.kube  # Crea el directorio .kube
           echo "${{ secrets.KUBECONFIG }}" | base64 --decode > $HOME/.kube/config
           chmod 600 $HOME/.kube/config
+
+      - name: Set Kubernetes context  # ¡Asegúrate de usar el contexto correcto!
+        run: kubectl config use-context minikube
 
       - name: Install Helm
         uses: azure/setup-helm@v3
