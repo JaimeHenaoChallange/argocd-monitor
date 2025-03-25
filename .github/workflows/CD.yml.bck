@@ -67,20 +67,16 @@ jobs:
           git commit -m "Update values.yaml with new image tag: ${{ steps.get-version.outputs.new_tag }}" || echo "No changes to commit"
           git push
 
-      - name: Set up kubeconfig  # ¡Configura el acceso al clúster!
-        run: |
-          echo "${{ secrets.KUBECONFIG }}" | base64 --decode > $HOME/.kube/config
-          chmod 600 $HOME/.kube/config
-
-      - name: Install Helm  # Necesario para helm template
+      - name: Install Helm # Necesario para helm template
         uses: azure/setup-helm@v3
         with:
-          version: v3.8.1
+          version: v3.8.1 #O la versión que desees.
 
-      - name: Deploy with Helm
+      - name: Deploy with kubectl (using helm template)
         run: |
-          helm upgrade --install argocd-monitor "$CHART_PATH" \
+          helm template argocd-monitor "$CHART_PATH" \
             --namespace "$NAMESPACE" \
             --set config.slackWebhookUrl="${{ secrets.SLACK_WEBHOOK_URL }}" \
             --set image.tag=${{ steps.get-version.outputs.new_tag }} \
-            --set image.repository=${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
+            --set image.repository=${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }} | \
+          kubectl apply -f -
