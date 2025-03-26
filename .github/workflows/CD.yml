@@ -45,6 +45,7 @@ jobs:
           elif [[ "$current_tag" == "latest" ]] || [[ -z "$current_tag" ]]; then
             new_version="0.1.0"
           else:
+            # Fallback a timestamp si el formato no es reconocido
             new_version=$(date +%Y%m%d%H%M%S)
           fi
           echo "new_tag=$new_version" >> $GITHUB_OUTPUT
@@ -67,11 +68,17 @@ jobs:
           git commit -m "Update values.yaml with new image tag: ${{ steps.get-version.outputs.new_tag }}" || echo "No changes to commit"
           git push
 
-      - name: Set up kubeconfig  # ¡CORREGIDO!
+      - name: Set up kubeconfig  # Configura el acceso al clúster
         run: |
-          mkdir -p $HOME/.kube  # Crea el directorio si no existe
+          mkdir -p $HOME/.kube
           echo "${{ secrets.KUBECONFIG_POC }}" | base64 --decode > $HOME/.kube/config
           chmod 600 $HOME/.kube/config
+
+      - name: Verify kubeconfig content # PASO DE DEPURACIÓN
+        run: cat $HOME/.kube/config
+
+      - name: Verify kubectl connection # PASO DE DEPURACIÓN
+        run: kubectl cluster-info
 
       - name: Install Helm
         uses: azure/setup-helm@v3
