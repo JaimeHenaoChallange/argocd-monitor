@@ -77,4 +77,4 @@ jobs:
             --namespace "$NAMESPACE" \
             --set config.slackWebhookUrl="${{ secrets.SLACK_WEBHOOK_URL }}" \
             --set image.tag=${{ steps.get-version.outputs.new_tag }} \
-            --set image.repository=${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
+            --set image.repository=${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }} 
