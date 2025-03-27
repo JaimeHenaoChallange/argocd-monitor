@@ -20,7 +20,7 @@ env:
 
 jobs:
   build-push-deploy:
-    runs-on: self-hosted # ¡CAMBIADO! Usa tu runner auto-hospedado
+    runs-on: self-hosted # ¡Usa el runner local!
 
     steps:
       - name: Checkout code
@@ -28,16 +28,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      # --- Docker Hub Login y Versionado --- (Igual que antes)
       - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
           username: ${{ env.DOCKERHUB_USERNAME }}
           password: ${{ env.DOCKERHUB_PASSWORD }}
 
+      - name: Install yq # ¡NUEVO PASO! (Alternativa 2, si no lo instalas en la VM)
+        run: |
+          sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq
+          sudo chmod +x /usr/local/bin/yq
+        # Si ya instalaste yq en la VM, puedes eliminar o comentar este paso.
+
       - name: Get and Increment Version
         id: get-version
-        # ... (lógica de incremento igual que antes) ...
         run: |
           current_tag=$(yq e '.image.tag' "$CHART_PATH/values.yaml")
           if [[ "$current_tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -46,36 +50,26 @@ jobs:
           echo "new_tag=$new_version" >> $GITHUB_OUTPUT
 
       - name: Build Docker image
-        # ... (igual que antes) ...
         run: |
           docker build -t ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.get-version.outputs.new_tag }} .
 
       - name: Push Docker image
-        # ... (igual que antes) ...
         run: |
           docker push ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.get-version.outputs.new_tag }}
 
       - name: Update values.yaml and commit
-        # ... (igual que antes, con git pull --rebase) ...
         run: |
           yq e ".image.tag = \"${{ steps.get-version.outputs.new_tag }}\"" -i "$CHART_PATH/values.yaml"; yq e ".image.repository = \"${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}\"" -i "$CHART_PATH/values.yaml"; git config --global user.name 'GitHub Actions'; git config --global user.email 'actions@github.com'; git add "$CHART_PATH/values.yaml"; git commit -m "Update values.yaml with new image tag: ${{ steps.get-version.outputs.new_tag }}" || echo "No changes to commit"; git pull --rebase --autostash; git push
 
-      # --- Acceso a Kubernetes --- (Simplificado)
-      # - name: Set up kubeconfig # YA NO ES NECESARIO SI EL RUNNER TIENE ACCESO LOCAL
-      #   run: |
-      #     mkdir -p $HOME/.kube
-      #     echo "${{ secrets.KUBECONFIG_POC }}" | base64 --decode > $HOME/.kube/config
-      #     chmod 600 $HOME/.kube/config
-      # Nota: Puedes mantener este paso si el runner está en una máquina diferente a Minikube,
-      # pero asegúrate de que el kubeconfig apunte a la IP correcta de la VM.
+      # Ya no se necesita 'Set up kubeconfig' si el runner tiene acceso local
 
-      - name: Verify kubectl connection (Using default context) # VERIFICACIÓN AJUSTADA
+      - name: Verify kubectl connection (Using default context)
         run: kubectl cluster-info
 
       - name: Install Helm
         uses: azure/setup-helm@v3
         with:
-          version: v3.8.1
+          version: v3.8.1 # O la versión que prefieras
 
       - name: Deploy with Helm
         run: |
@@ -84,4 +78,3 @@ jobs:
             --set config.slackWebhookUrl="${{ secrets.SLACK_WEBHOOK_URL }}" \
             --set image.tag=${{ steps.get-version.outputs.new_tag }} \
             --set image.repository=${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
-          # Ya no necesita --kubeconfig si el runner tiene el contexto por defecto
