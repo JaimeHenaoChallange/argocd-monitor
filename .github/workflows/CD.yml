@@ -20,14 +20,15 @@ env:
 
 jobs:
   build-push-deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted # ¡CAMBIADO! Usa tu runner auto-hospedado
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Necesario para obtener el historial completo para git pull/rebase
+          fetch-depth: 0
 
+      # --- Docker Hub Login y Versionado --- (Igual que antes)
       - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
@@ -36,50 +37,39 @@ jobs:
 
       - name: Get and Increment Version
         id: get-version
+        # ... (lógica de incremento igual que antes) ...
         run: |
           current_tag=$(yq e '.image.tag' "$CHART_PATH/values.yaml")
           if [[ "$current_tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            major=$(echo "$current_tag" | cut -d. -f1)
-            minor=$(echo "$current_tag" | cut -d. -f2)
-            patch=$(echo "$current_tag" | cut -d. -f3)
-            new_patch=$((patch + 1))
-            new_version="$major.$minor.$new_patch"
-          elif [[ "$current_tag" == "latest" ]] || [[ -z "$current_tag" ]]; then
-            new_version="0.1.0"
-          else:
-            new_version=$(date +%Y%m%d%H%M%S)
-          fi
+            major=$(echo "$current_tag" | cut -d. -f1); minor=$(echo "$current_tag" | cut -d. -f2); patch=$(echo "$current_tag" | cut -d. -f3); new_patch=$((patch + 1)); new_version="$major.$minor.$new_patch"
+          elif [[ "$current_tag" == "latest" ]] || [[ -z "$current_tag" ]]; then new_version="0.1.0"; else new_version=$(date +%Y%m%d%H%M%S); fi
           echo "new_tag=$new_version" >> $GITHUB_OUTPUT
 
       - name: Build Docker image
+        # ... (igual que antes) ...
         run: |
           docker build -t ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.get-version.outputs.new_tag }} .
 
       - name: Push Docker image
+        # ... (igual que antes) ...
         run: |
           docker push ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.get-version.outputs.new_tag }}
 
       - name: Update values.yaml and commit
+        # ... (igual que antes, con git pull --rebase) ...
         run: |
-          yq e ".image.tag = \"${{ steps.get-version.outputs.new_tag }}\"" -i "$CHART_PATH/values.yaml"
-          yq e ".image.repository = \"${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}\"" -i "$CHART_PATH/values.yaml"
-          git config --global user.name 'GitHub Actions'
-          git config --global user.email 'actions@github.com'
-          git add "$CHART_PATH/values.yaml"
-          git commit -m "Update values.yaml with new image tag: ${{ steps.get-version.outputs.new_tag }}" || echo "No changes to commit"
-          git pull --rebase --autostash  # ¡AÑADIDO! Descargar cambios remotos y aplicar los locales encima
-          git push
+          yq e ".image.tag = \"${{ steps.get-version.outputs.new_tag }}\"" -i "$CHART_PATH/values.yaml"; yq e ".image.repository = \"${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}\"" -i "$CHART_PATH/values.yaml"; git config --global user.name 'GitHub Actions'; git config --global user.email 'actions@github.com'; git add "$CHART_PATH/values.yaml"; git commit -m "Update values.yaml with new image tag: ${{ steps.get-version.outputs.new_tag }}" || echo "No changes to commit"; git pull --rebase --autostash; git push
 
-      - name: Set up kubeconfig
-        run: |
-          mkdir -p $HOME/.kube
-          echo "${{ secrets.KUBECONFIG }}" | base64 --decode > $HOME/.kube/config
-          chmod 600 $HOME/.kube/config
+      # --- Acceso a Kubernetes --- (Simplificado)
+      # - name: Set up kubeconfig # YA NO ES NECESARIO SI EL RUNNER TIENE ACCESO LOCAL
+      #   run: |
+      #     mkdir -p $HOME/.kube
+      #     echo "${{ secrets.KUBECONFIG_POC }}" | base64 --decode > $HOME/.kube/config
+      #     chmod 600 $HOME/.kube/config
+      # Nota: Puedes mantener este paso si el runner está en una máquina diferente a Minikube,
+      # pero asegúrate de que el kubeconfig apunte a la IP correcta de la VM.
 
-      - name: Verify kubeconfig content # PASO DE DEPURACIÓN
-        run: cat $HOME/.kube/config
-
-      - name: Verify kubectl connection # PASO DE DEPURACIÓN
+      - name: Verify kubectl connection (Using default context) # VERIFICACIÓN AJUSTADA
         run: kubectl cluster-info
 
       - name: Install Helm
@@ -94,3 +84,4 @@ jobs:
             --set config.slackWebhookUrl="${{ secrets.SLACK_WEBHOOK_URL }}" \
             --set image.tag=${{ steps.get-version.outputs.new_tag }} \
             --set image.repository=${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
+          # Ya no necesita --kubeconfig si el runner tiene el contexto por defecto
